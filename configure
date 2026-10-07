@@ -1,0 +1,14 @@
+#!/bin/sh
+. "$(dirname "$0" )/tconf.sh"
+
+OPTIONS="MULTI_LANGUAGES"
+: ${MULTI_LANGUAGES:="yes"}
+tconf_init "$@"
+
+tconf_search_cc "$HOST"
+tconf_require "C compiler" "$CC"
+tconf_find_os
+
+tconf_gen_makefiles "$SRCDIR/Makefile.in"
+
+tconf_fini
