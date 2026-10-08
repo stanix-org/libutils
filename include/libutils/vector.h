@@ -11,7 +11,7 @@ typedef struct utils_vector {
 	void *data;
 } utils_vector_t;
 
-static inline void utils_init_vector(utils_vector_t *vector, size_t element_size){
+static inline void utils_vector_init(utils_vector_t *vector, size_t element_size){
 	if (vector->data) return;
 	vector->data = NULL;
 	vector->capacity = 0;
@@ -19,7 +19,7 @@ static inline void utils_init_vector(utils_vector_t *vector, size_t element_size
 	vector->element_size = element_size;
 }
 
-static inline void utils_free_vector(utils_vector_t *vector){
+static inline void utils_vector_destroy(utils_vector_t *vector){
 	if (!vector->data) return;
 	free(vector->data);
 	vector->data = NULL;
@@ -52,8 +52,10 @@ static inline int utils_vector_pop_back(utils_vector_t *vector, void *element){
 	return 0;
 }
 
-#define utils_vector_foreach(vector, element) for (void *element = (vector)->data; \
+#define utils_vector_typed_foreach(type, element, vector) for (type *element = (vector)->data; \
 	(char*)element - (char*) (vector)->data < (vector)->count * (vector)->element_size; \
 	element = (char*)element + (vector)->element_size)
+
+#define utils_vector_foreach(element, vector) utils_vector_typed_foreach(void, element, vector)
 
 #endif
