@@ -62,7 +62,7 @@ static inline int utils_list_is_in(utils_list_t *list, utils_list_node_t *node) 
 	return 0;
 }
 
-#define utils_list_foreach(list, node) for (utils_list_node_t *node = (list)->first; node; node = node->next)
-#define utils_list_reverse_foreach(list, node) for (utils_list_node_t *node = (list)->last; node; node = node->prev)
+#define utils_list_foreach(node, list) for (utils_list_node_t *node = (list)->first; node; node = node->next)
+#define utils_list_reverse_foreach(node, list) for (utils_list_node_t *node = (list)->last; node; node = node->prev)
 
 #endif

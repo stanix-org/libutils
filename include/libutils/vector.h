@@ -12,7 +12,6 @@ typedef struct utils_vector {
 } utils_vector_t;
 
 static inline void utils_vector_init(utils_vector_t *vector, size_t element_size){
-	if (vector->data) return;
 	vector->data = NULL;
 	vector->capacity = 0;
 	vector->count = 0;
@@ -20,7 +19,6 @@ static inline void utils_vector_init(utils_vector_t *vector, size_t element_size
 }
 
 static inline void utils_vector_destroy(utils_vector_t *vector){
-	if (!vector->data) return;
 	free(vector->data);
 	vector->data = NULL;
 	vector->count = 0;
