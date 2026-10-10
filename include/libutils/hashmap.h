@@ -2,78 +2,115 @@
 #define LIBUTILS_HASHMAP_H
 
 #include "vector.h"
+#include "macro.h"
 #include <stdlib.h>
 #include <stdint.h>
 
+typedef unsigned int utils_hash_t;
+typedef utils_hash_t (*utils_hash_func_t)(const void *data);
+typedef int (*utils_cmp_func_t)(const void *a, const void *b);
+typedef void (*utils_destroy_func_t)(void *data);
+
 typedef struct utils_hashmap_entry {
-	long key;
+	void *key;
 	void *element;
 } utils_hashmap_entry_t;
 
-typedef struct utils_hasmap {
+typedef struct utils_hashmap {
 	utils_vector_t *vectors;
 	size_t capacity;
+	utils_hash_func_t hash;
+	utils_cmp_func_t cmp;
+	utils_destroy_func_t destroy_key;
+	utils_destroy_func_t destroy_element;
 } utils_hashmap_t;
 
-static inline void utils_init_hashmap(utils_hashmap_t *hashmap, size_t capacity) {
-	if (hashmap->vectors) return;
-	hashmap->vectors = malloc(sizeof(utils_vector_t) * capacity);
-	memset(hashmap->vectors, 0, sizeof(utils_vector_t) * capacity);
-	hashmap->capacity = capacity;
+static inline size_t utils_hashmap_hash(utils_hashmap_t *hashmap, const void *key) {
+	return (size_t)hashmap->hash(key) % hashmap->capacity;
 }
 
-static inline void utils_free_hashmap(utils_hashmap_t *hashmap) {
+static inline size_t utils_hashmap_equal(utils_hashmap_t *hashmap, const void *a, const void *b) {
+	return hashmap->cmp(a, b) == 0;
+}
+
+static inline void utils_hashmap_destroy_key(utils_hashmap_t *hashmap, void *key) {
+	if (hashmap->destroy_key) {
+		hashmap->destroy_key(key);
+	}
+}
+
+static inline void utils_hashmap_destroy_element(utils_hashmap_t *hashmap, void *element) {
+	if (hashmap->destroy_element) {
+		hashmap->destroy_element(element);
+	}
+}
+
+static inline int utils_hashmap_init(utils_hashmap_t *hashmap, size_t capacity, utils_hash_func_t hash, utils_cmp_func_t cmp, utils_destroy_func_t destroy_key, utils_destroy_func_t destroy_element) {
+	hashmap->vectors = malloc(sizeof(utils_vector_t) * capacity);
+	if (!hashmap->vectors) return -1;
+	memset(hashmap->vectors, 0, sizeof(utils_vector_t) * capacity);
+	hashmap->capacity = capacity;
+	hashmap->hash = hash;
+	hashmap->cmp  = cmp;
+	hashmap->destroy_key     = destroy_key;
+	hashmap->destroy_element = destroy_element;
+	return 0;
+}
+
+static inline void utils_hashmap_destroy(utils_hashmap_t *hashmap) {
 	if (!hashmap->vectors) return;
-	for (size_t i=0; i<hashmap->capacity; i++) {
-		utils_free_vector(&hashmap->vectors[i]);
+	for (size_t i = 0; i < hashmap->capacity; i++) {
+		if (hashmap->vectors[i].count == 0) continue;
+		utils_vector_typed_foreach (utils_hashmap_entry_t, entry, &hashmap->vectors[i]) {
+			utils_hashmap_destroy_key(hashmap, entry->key);
+			utils_hashmap_destroy_element(hashmap, entry->element);
+		}
+		utils_vector_destroy(&hashmap->vectors[i]);
 	}
 	free(hashmap->vectors);
 	hashmap->vectors = NULL;
 	hashmap->capacity = 0;
 }
 
-static inline size_t utils_hashmap_hash(utils_hashmap_t *hashmap, long key) {
-	return (size_t)key % hashmap->capacity;
-}
-
-static inline void *utils_hashmap_get(utils_hashmap_t *hashmap, long key) {
+static inline void *utils_hashmap_get(utils_hashmap_t *hashmap, const void *key) {
 	utils_vector_t *vector = &hashmap->vectors[utils_hashmap_hash(hashmap, key)];
-	utils_hashmap_entry_t *entries = vector->data;
-	if (!entries) return NULL;
-	for (size_t i=0; i<vector->count; i++) {
-		if (entries[i].key == key) {
-			return entries[i].element;
+	utils_vector_typed_foreach (utils_hashmap_entry_t, entry, vector) {
+		if (utils_hashmap_equal(hashmap, entry->key, key)) {
+			return entry->element;
 		}
 	}
 	return NULL;
 }
 
-static inline void utils_hashmap_add(utils_hashmap_t *hashmap, long key, const void *element) {
+static inline void utils_hashmap_add(utils_hashmap_t *hashmap, const void *key, const void *element) {
 	utils_vector_t *vector = &hashmap->vectors[utils_hashmap_hash(hashmap, key)];
-	utils_init_vector(vector, sizeof(utils_hashmap_entry_t));
-	utils_hashmap_entry_t *entries = vector->data;
-	for (size_t i=0; i<vector->count; i++) {
-		if (entries[i].key == key) {
-			entries[i].element = (void*)element;
+	if (vector->count == 0) {
+		utils_vector_init(vector, sizeof(utils_hashmap_entry_t));
+	}
+	utils_vector_typed_foreach (utils_hashmap_entry_t, entry, vector) {
+		if (utils_hashmap_equal(hashmap, entry->key, key)) {
+			utils_hashmap_destroy_element(hashmap, entry->element);
+			entry->element = (void*)element;
 			return;
 		}
 	}
 	utils_hashmap_entry_t entry = {
-		.key = key,
+		.key = (void*)key,
 		.element = (void*)element,
 	};
 	utils_vector_push_back(vector, &entry);
 }
 
 
-static inline int utils_hashmap_remove(utils_hashmap_t *hashmap, long key) {
+static inline int utils_hashmap_remove(utils_hashmap_t *hashmap, const void *key) {
 	utils_vector_t *vector = &hashmap->vectors[utils_hashmap_hash(hashmap, key)];
-	utils_hashmap_entry_t *entries = vector->data;
-	if (!entries) return 0;
-	for (size_t i=0; i<vector->count; i++) {
-		if (entries[i].key == key) {
-			if (i != vector->count - 1) memcpy(&entries[i], &entries[vector->count-1], sizeof(utils_hashmap_entry_t));
+	utils_vector_typed_indexed_foreach (utils_hashmap_entry_t, entry, i, vector) {
+		if (utils_hashmap_equal(hashmap, entry->key, key)) {
+			utils_hashmap_destroy_key(hashmap, entry->key);
+			utils_hashmap_destroy_element(hashmap, entry->element);
+			if (i != vector->count - 1) memcpy(entry, utils_vector_at(vector, vector->count-1), sizeof(utils_hashmap_entry_t));
 			utils_vector_pop_back(vector, NULL);
+			if (vector->count == 0) utils_vector_destroy(vector);
 			return 1;
 		}
 	}

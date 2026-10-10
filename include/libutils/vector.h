@@ -1,6 +1,7 @@
 #ifndef LIBUTILS_VECTOR_H
 #define LIBUTILS_VECTOR_H
 
+#include "macro.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -50,10 +51,15 @@ static inline int utils_vector_pop_back(utils_vector_t *vector, void *element){
 	return 0;
 }
 
-#define utils_vector_typed_foreach(type, element, vector) for (type *element = (vector)->data; \
-	(char*)element - (char*) (vector)->data < (vector)->count * (vector)->element_size; \
-	element = (char*)element + (vector)->element_size)
+#define utils_vector_typed_indexed_foreach(type, element, index, vector) \
+	utils_loop_var_value(size_t, index, 0) \
+	for (type *element = (vector)->data; \
+	index < (vector)->count; \
+	element = (type*)((char*)element + (vector)->element_size), index++)
 
+#define utils_vector_indexed_foreach(element, index, vector) utils_vector_typed_indexed_foreach(void, element, index, vector)
+
+#define utils_vector_typed_foreach(type, element, vector) utils_vector_typed_indexed_foreach(type, element, _utils_index, vector)
 #define utils_vector_foreach(element, vector) utils_vector_typed_foreach(void, element, vector)
 
 #endif
